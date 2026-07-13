@@ -393,7 +393,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (!text) return;
 
     if (message.author.id === OWNER_ID) {
-      // Owner: parse as natural language command and execute
+      // Owner only: parse as natural language command and execute
       const actions = await parseOwnerCommand(text).catch(() => [
         { type: "unknown" as const, reply: "Failed to parse command." },
       ]);
@@ -402,20 +402,8 @@ client.on(Events.MessageCreate, async (message) => {
         message.guild,
         (msg) => message.reply({ content: msg, allowedMentions: { repliedUser: false } })
       );
-    } else {
-      // Regular user: answer as support AI (stateless — no ticket history needed)
-      await (message.channel as TextChannel).sendTyping();
-      const tempState: TicketState = { history: [], staffActive: false, staffTimer: null };
-      try {
-        const reply = await askMistral(tempState, text);
-        await message.reply({ content: reply, allowedMentions: { repliedUser: false } });
-      } catch {
-        await message.reply({
-          content: "An error occurred. Please try again.",
-          allowedMentions: { repliedUser: false },
-        });
-      }
     }
+    // Regular users get no response outside of support tickets
     return;
   }
 
