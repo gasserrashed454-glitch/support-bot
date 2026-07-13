@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: support-bot
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: MISTRAL_TOKENS
+        sync: false
+      - key: STAFF_ROLE_NAMES
+        sync: false
