@@ -28,11 +28,7 @@ const MISTRAL_TOKENS = (process.env.MISTRAL_TOKENS ?? "")
 
 if (MISTRAL_TOKENS.length === 0) throw new Error("Missing MISTRAL_TOKENS");
 
-const STAFF_ROLE_NAMES = (
-  process.env.STAFF_ROLE_NAMES ?? "admin,moderator,mod,staff,owner,manager,helper"
-)
-  .split(",")
-  .map((r) => r.trim().toLowerCase());
+const STAFF_ROLE_ID = "1477971481647644784";
 
 // The owner — can command the bot via natural language @mention
 const OWNER_ID = "1459268330933326087";
@@ -284,9 +280,7 @@ interface TicketState {
 const tickets = new Map<string, TicketState>();
 
 function isStaff(member: GuildMember): boolean {
-  return member.roles.cache.some((r) =>
-    STAFF_ROLE_NAMES.some((name) => r.name.toLowerCase().includes(name))
-  );
+  return member.roles.cache.has(STAFF_ROLE_ID);
 }
 
 async function fetchBase64(url: string): Promise<string> {
