@@ -33,7 +33,6 @@ const STAFF_ROLE_ID = "1477971481647644784";
 // The owner — can command the bot via natural language @mention
 const OWNER_ID = "1459268330933326087";
 
-const CHANNEL_REFRESH_MS = 15 * 60 * 1000;
 
 // Channels to skip — private, noisy, or irrelevant
 const SKIP_CHANNEL_KEYWORDS = [
@@ -378,11 +377,6 @@ client.once(Events.ClientReady, async (c) => {
   for (const [, guild] of c.guilds.cache) {
     await buildChannelKnowledge(guild).catch(console.error);
   }
-  setInterval(async () => {
-    for (const [, guild] of client.guilds.cache) {
-      await buildChannelKnowledge(guild).catch(console.error);
-    }
-  }, CHANNEL_REFRESH_MS);
 });
 
 client.on(Events.GuildCreate, async (guild) => {
@@ -405,6 +399,18 @@ client.on(Events.ChannelCreate, async (channel) => {
 // ---------------------------------------------------------------------------
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
+
+  // ---------------------------------------------------------------------------
+  // .sync — owner only, works anywhere
+  // ---------------------------------------------------------------------------
+  if (message.content.trim().toLowerCase() === ".sync") {
+    if (message.author.id !== OWNER_ID) return;
+    if (!message.guild) return;
+    await message.reply({ content: "Syncing channels...", allowedMentions: { repliedUser: false } });
+    await buildChannelKnowledge(message.guild);
+    await message.reply({ content: "Done. Channel knowledge updated.", allowedMentions: { repliedUser: false } });
+    return;
+  }
 
   const botMentioned = message.mentions.has(client.user!.id);
 
