@@ -33,7 +33,6 @@ const STAFF_ROLE_ID = "1477971481647644784";
 // The owner — can command the bot via natural language @mention
 const OWNER_ID = "1459268330933326087";
 
-const STAFF_IDLE_MS = 5 * 60 * 1000;
 const CHANNEL_REFRESH_MS = 30 * 60 * 1000;
 
 const INFO_CHANNEL_KEYWORDS = [
@@ -272,8 +271,6 @@ async function executeOwnerActions(
 // ---------------------------------------------------------------------------
 interface TicketState {
   history: { role: "user" | "assistant"; content: string }[];
-  staffActive: boolean;
-  staffTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const tickets = new Map<string, TicketState>();
@@ -360,7 +357,7 @@ client.on(Events.GuildCreate, async (guild) => {
 client.on(Events.ChannelCreate, async (channel) => {
   if (channel.type !== ChannelType.GuildText) return;
   if (!channel.name.toLowerCase().includes("support")) return;
-  tickets.set(channel.id, { history: [], staffActive: false, staffTimer: null });
+   tickets.set(channel.id, { history: [] });
   await new Promise((r) => setTimeout(r, 1000));
   await (channel as TextChannel).send(
     "Hello. How can I help you?\n\nDescribe your issue and I will assist you. A staff member may join if needed."
@@ -396,15 +393,6 @@ client.on(Events.MessageCreate, async (message) => {
         message.guild,
         (msg) => message.reply({ content: msg, allowedMentions: { repliedUser: false } })
       );
-      // If this was inside a ticket, silence the bot with no cooldown timer
-      const ticketState = tickets.get(message.channelId);
-      if (ticketState) {
-        ticketState.staffActive = true;
-        if (ticketState.staffTimer) {
-          clearTimeout(ticketState.staffTimer);
-          ticketState.staffTimer = null;
-        }
-      }
     }
     // Regular users get no response outside of support tickets
     return;
@@ -417,34 +405,14 @@ client.on(Events.MessageCreate, async (message) => {
   const state = tickets.get(message.channelId);
   if (!state) return;
 
-  // Owner is always treated as staff in tickets — bot goes silent, no cooldown timer
-  if (message.author.id === OWNER_ID) {
-    state.staffActive = true;
-    if (state.staffTimer) {
-      clearTimeout(state.staffTimer);
-      state.staffTimer = null;
-    }
-    return;
-  }
+  // Owner and staff messages in tickets are ignored — bot keeps responding to the user
+  if (message.author.id === OWNER_ID) return;
 
   const member =
     message.guild.members.cache.get(message.author.id) ??
     (await message.guild.members.fetch(message.author.id).catch(() => null));
 
-  const staffMessage = member ? isStaff(member) : false;
-
-  if (staffMessage) {
-    state.staffActive = true;
-    if (state.staffTimer) clearTimeout(state.staffTimer);
-    state.staffTimer = setTimeout(async () => {
-      state.staffActive = false;
-      const ch = client.channels.cache.get(message.channelId) as TextChannel | null;
-      if (ch) await ch.send("The staff member has stepped away. Do you still need assistance?");
-    }, STAFF_IDLE_MS);
-    return;
-  }
-
-  if (state.staffActive) return;
+  if (member && isStaff(member)) return;
 
   const text = message.content.trim();
   const attachments = [...message.attachments.values()];
