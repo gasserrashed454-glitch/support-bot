@@ -407,8 +407,17 @@ client.on(Events.MessageCreate, async (message) => {
   const state = tickets.get(message.channelId);
   if (!state) return;
 
-  // Owner messages in tickets are ignored — they use @mention for commands
-  if (message.author.id === OWNER_ID) return;
+  // Owner is always treated as staff in tickets — bot goes silent
+  if (message.author.id === OWNER_ID) {
+    state.staffActive = true;
+    if (state.staffTimer) clearTimeout(state.staffTimer);
+    state.staffTimer = setTimeout(async () => {
+      state.staffActive = false;
+      const ch = client.channels.cache.get(message.channelId) as TextChannel | null;
+      if (ch) await ch.send("The staff member has stepped away. Do you still need assistance?");
+    }, STAFF_IDLE_MS);
+    return;
+  }
 
   const member =
     message.guild.members.cache.get(message.author.id) ??
