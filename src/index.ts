@@ -361,6 +361,7 @@ client.on(Events.ChannelCreate, async (channel) => {
   if (channel.type !== ChannelType.GuildText) return;
   if (!channel.name.toLowerCase().includes("support")) return;
   tickets.set(channel.id, { history: [], staffActive: false, staffTimer: null });
+  await new Promise((r) => setTimeout(r, 1000));
   await (channel as TextChannel).send(
     "Hello. How can I help you?\n\nDescribe your issue and I will assist you. A staff member may join if needed."
   );
@@ -395,6 +396,15 @@ client.on(Events.MessageCreate, async (message) => {
         message.guild,
         (msg) => message.reply({ content: msg, allowedMentions: { repliedUser: false } })
       );
+      // If this was inside a ticket, silence the bot with no cooldown timer
+      const ticketState = tickets.get(message.channelId);
+      if (ticketState) {
+        ticketState.staffActive = true;
+        if (ticketState.staffTimer) {
+          clearTimeout(ticketState.staffTimer);
+          ticketState.staffTimer = null;
+        }
+      }
     }
     // Regular users get no response outside of support tickets
     return;
@@ -407,15 +417,13 @@ client.on(Events.MessageCreate, async (message) => {
   const state = tickets.get(message.channelId);
   if (!state) return;
 
-  // Owner is always treated as staff in tickets — bot goes silent
+  // Owner is always treated as staff in tickets — bot goes silent, no cooldown timer
   if (message.author.id === OWNER_ID) {
     state.staffActive = true;
-    if (state.staffTimer) clearTimeout(state.staffTimer);
-    state.staffTimer = setTimeout(async () => {
-      state.staffActive = false;
-      const ch = client.channels.cache.get(message.channelId) as TextChannel | null;
-      if (ch) await ch.send("The staff member has stepped away. Do you still need assistance?");
-    }, STAFF_IDLE_MS);
+    if (state.staffTimer) {
+      clearTimeout(state.staffTimer);
+      state.staffTimer = null;
+    }
     return;
   }
 
