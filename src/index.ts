@@ -33,12 +33,13 @@ const STAFF_ROLE_ID = "1477971481647644784";
 // The owner — can command the bot via natural language @mention
 const OWNER_ID = "1459268330933326087";
 
-const CHANNEL_REFRESH_MS = 30 * 60 * 1000;
+const CHANNEL_REFRESH_MS = 15 * 60 * 1000;
 
-const INFO_CHANNEL_KEYWORDS = [
-  "kit", "recipe", "rule", "announce", "info", "rank", "shop",
-  "warp", "event", "update", "news", "guide", "faq", "help",
-  "changelog", "patch", "item", "loot",
+// Channels to skip — private, noisy, or irrelevant
+const SKIP_CHANNEL_KEYWORDS = [
+  "ticket", "support", "log", "audit", "staff", "mod-", "admin",
+  "bot-", "cmd", "command", "spam", "meme", "media", "off-topic",
+  "offtopic", "nsfw", "vent",
 ];
 
 // ---------------------------------------------------------------------------
@@ -58,20 +59,55 @@ let channelKnowledge = "";
 
 async function buildChannelKnowledge(guild: Guild): Promise<void> {
   const sections: string[] = [];
+
+  // Ensure all channels are fetched
+  await guild.channels.fetch().catch(() => {});
+
   for (const [, channel] of guild.channels.cache) {
     if (channel.type !== ChannelType.GuildText) continue;
-    if (!INFO_CHANNEL_KEYWORDS.some((kw) => channel.name.toLowerCase().includes(kw))) continue;
+
+    const name = channel.name.toLowerCase();
+
+    // Skip private/noisy/irrelevant channels
+    if (SKIP_CHANNEL_KEYWORDS.some((kw) => name.includes(kw))) continue;
+
+    const tc = channel as TextChannel;
+    const parts: string[] = [];
+
+    // Channel topic
+    if (tc.topic?.trim()) parts.push(`Topic: ${tc.topic.trim()}`);
+
+    // Pinned messages — highest priority info
     try {
-      const messages = await (channel as TextChannel).messages.fetch({ limit: 50 });
-      const lines = messages
-        .reverse()
+      const pinned = await tc.messages.fetchPinned();
+      const pinnedLines = pinned
         .map((m) => m.content.trim())
         .filter((c) => c.length > 0);
-      if (lines.length > 0) sections.push(`=== #${channel.name} ===\n${lines.join("\n")}`);
-    } catch { /* no permission — skip */ }
+      if (pinnedLines.length > 0) parts.push(`[Pinned]\n${pinnedLines.join("\n")}`);
+    } catch { /* no permission */ }
+
+    // Last 100 recent messages
+    try {
+      const recent = await tc.messages.fetch({ limit: 100 });
+      const lines = recent
+        .reverse()
+        .map((m) => {
+          // Include embeds text if message content is empty
+          const text = m.content.trim() ||
+            m.embeds.map((e) => [e.title, e.description].filter(Boolean).join(": ")).join(" ");
+          return text;
+        })
+        .filter((c) => c.length > 0);
+      if (lines.length > 0) parts.push(`[Recent]\n${lines.join("\n")}`);
+    } catch { /* no permission */ }
+
+    if (parts.length > 0) {
+      sections.push(`=== #${channel.name} ===\n${parts.join("\n\n")}`);
+    }
   }
-  channelKnowledge = sections.join("\n\n");
-  console.log(`Channel knowledge updated: ${sections.length} channel(s)`);
+
+  channelKnowledge = sections.join("\n\n---\n\n");
+  console.log(`Channel knowledge updated: ${sections.length} channel(s) synced`);
 }
 
 // ---------------------------------------------------------------------------
